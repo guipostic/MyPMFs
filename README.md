@@ -20,8 +20,9 @@ Run each program without any argument (or with -h option).
 
 
 ### Case#1:
-
+```markdown
 $ ./training -l example/list1.txt -d example/dataset/ -o myPotentials
+```
 
 This will create a statistical potential for each residue pair represented by the carbons alpha (n=210; *.nrg files).
 
