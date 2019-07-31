@@ -1,18 +1,7 @@
 # MyPMFs
 
-  __  __       ____  __  __ _____    
- |  \/  |_   _|  _ \|  \/  |  ___|__ 
- | |\/| | | | | |_) | |\/| | |_ / __|
- | |  | | |_| |  __/| |  | |  _|\__ \
- |_|  |_|\__, |_|   |_|  |_|_|  |___/
-         |___/                       
-                          Version 1.0
 
-
-
-
-INSTALL:
-========
+## INSTALL:
 
 Type 'make' in the terminal.
 This will create executable binaries named 'scoring' and 'training'.
@@ -20,20 +9,17 @@ This will create executable binaries named 'scoring' and 'training'.
 
 
 
-GET HELP:
-=========
+## GET HELP:
 
 Run each program without any argument (or with -h option).
 
 
 
 
-EXAMPLES:
-=========
+## EXAMPLES:
 
 
-Case#1:
--------
+### Case#1:
 
 $ ./training -l example/list1.txt -d example/dataset/ -o myPotentials
 
@@ -58,8 +44,7 @@ This will calculate the pseudo-energy of the structure 1BKR by using the previou
 
 
 
-Case#2:
--------
+### Case#2:
 
 $ ./training -l example/list1.txt -d example/dataset/ -o myPotentials -r CB -p -g
 
@@ -87,8 +72,7 @@ Notes:
 
 
 
-Case#3:
--------
+### Case#3:
 
 $ ./training -l example/list1.txt -d example/dataset/ -o myPotentials -k e -b SJ-dpi -p
 
@@ -107,8 +91,7 @@ This Z-score will be computed on 2000 random sequence decoys (-s 2000).
 
 
 
-Case#4:
--------
+### Case#4:
 
 After any training:
 
@@ -120,8 +103,7 @@ The chain name is provided for 2 structures in this list. By default, all chains
 
 
 
-Case#5:
--------
+### Case#5:
 
 $ ./training -l example/list1.txt -d example/dataset/ -o myRefState -r allatom -W
 
@@ -135,6 +117,3 @@ $ ./training -l example/list1.txt -d example/dataset/ -o myPotentials -R myRefSt
 Thus, the observed frequencies are trained on backbones, while the reference state is trained on all atoms.
 
 
-
-
-Contact: guillaume.postic@upmc.fr
