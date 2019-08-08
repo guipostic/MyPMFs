@@ -12,8 +12,12 @@ foreach my $line (@input_list){
 }
 
 foreach my $key (keys %hash){
-    system "wget -q https://files.rcsb.org/download/$key.pdb.gz";
-    unless (-e "$key.pdb.gz" and -f "$key.pdb.gz"){
-        print "FAIL: $key\n";
+    my $file = 'pdb'.lc($key).'.ent.gz';
+    system "cp ~/mounted_banks/pdb/data/structures/all/pdb/$file . 2> /dev/null";
+    unless (-e $file and -f $file){
+        system "wget -q https://files.rcsb.org/download/$key.pdb.gz";
+        unless (-e "$key.pdb.gz" and -f "$key.pdb.gz"){
+            print "FAIL: $key\n";
+        }
     }
 }
