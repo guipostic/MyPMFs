@@ -4,7 +4,7 @@
  * The training part of the MyPMFs suite
  *
  * ---------------------------------------------------------------------
- * Copyright (C) 2017 Guillaume Postic (guillaume.postic@upmc.fr)
+ * Copyright (C) 2019 Guillaume Postic (guillaume.postic@univ-paris-diderot.fr)
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
@@ -90,6 +90,10 @@ int main(int argc, char** argv){
         "    -U              Same as -Y, but for large input datasets (Note: -U or -Y option implies an early stoppage of the program)\n"
         "    -Z    string    Directory containing the pre-computed frequencies (*.frq) to use as reference frequencies\n"
         "\n"
+        "    Work in progress... (requires -A option to be activated):\n"
+        "    -B              Rel diff: ref, obs, min, max, geo, har, avg, odd, rms, zscore\n"
+        "    -C              Info: xxx, log, ref, zscore\n"
+        "\n"
         "    Related to the density() function from the R standard library (Kernel Density Estimations):\n"
         "    -k    string    Kernel: g (gaussian), e (epanechnikov), r (rectangular), t (triangular),\n"
         "                            b (biweight), c (cosine), or o (optcosine); (default=g)\n"
@@ -129,10 +133,12 @@ int main(int argc, char** argv){
     bool writeFreq = false;
     bool uwriteFreq = false;
     string dirFreqFiles;
-    bool largeinput =false;
+    bool largeinput = false;
+    string reldiff;
+    string info;
 
     int opt;
-    while ((opt = getopt(argc,argv,"hxygWXYUApl:L:d:m:n:o:w:k:b:a:e:s:i:j:t:r:c:f:R:Z:")) != EOF){
+    while ((opt = getopt(argc,argv,"hxygWXYUApl:L:d:m:n:o:w:k:b:a:e:s:i:j:t:r:c:f:R:Z:B:C:")) != EOF){
         switch(opt){
             case 'l': listpdb = optarg; break;
             case 'L': listfiles = optarg; break;
@@ -163,6 +169,8 @@ int main(int argc, char** argv){
             case 't': emax = atof(optarg); break;
             case 'r': cacbbb = optarg; break;
             case 'c': cut = optarg; break;
+            case 'B': reldiff = optarg; break;
+            case 'C': info = optarg; break;
             case 'h': fprintf(stderr, "%s", optlist.c_str()); return 0;
         }
     }
@@ -172,6 +180,8 @@ int main(int argc, char** argv){
     vector<string> possibler { "CA", "CB", "BB", "SC1", "allatom", "allatomCG", "backbone", "sidechains", "sidechainsCG" };
     vector<string> possiblee { "nrd", "nrd0", "bcv", "ucv" };
     vector<string> possibles { "nrd", "nrd0" };
+    vector<string> possible_reldiff { "ref", "obs", "min", "max", "geo", "har", "avg", "odd", "rms", "zscore" };
+    vector<string> possible_info { "xxx", "ref", "zscore", "log" };
 
     if (argc == 1){ fprintf(stderr, "%s", optlist.c_str()); return 1; }
     if (listpdb.empty() and listfiles.empty()){ cerr << "\nError: Missing -l or -L argument\n" << endl; return 1; }
@@ -217,6 +227,19 @@ int main(int argc, char** argv){
     if (inputdir.empty() and listfiles.empty()){ cerr << "\nError: Missing -d argument\n" << endl; return 1; }
     if (!inputdir.empty() and !listfiles.empty()){ cerr << "\nWarning: -d argument useless with -L argument\n" << endl; }
     if (stillwrite and xwriteRefFreq){ cerr << "\nWarning: -g argument useless with -X argument\n" << endl; }
+
+    if(!reldiff.empty() and !(find(possible_reldiff.begin(), possible_reldiff.end(), reldiff) != possible_reldiff.end())) {
+        cerr << "\nError: Invalid -B argument\n" << endl; return 1;
+    }
+    if(!info.empty() and !(find(possible_info.begin(), possible_info.end(), info) != possible_info.end())) {
+        cerr << "\nError: Invalid -C argument\n" << endl; return 1;
+    }
+    if(!reldiff.empty() and !largeinput){
+        cerr << "\nError: Using -B argument requires -A option to be activated\n" << endl; return 1;
+    }
+    if(!info.empty() and !largeinput){
+        cerr << "\nError: Using -C argument requires -A option to be activated\n" << endl; return 1;
+    }
 
     bool allatom = (cacbbb == "allatom" or cacbbb == "backbone" or cacbbb == "sidechains") ? true : false;
 
@@ -770,6 +793,49 @@ int main(int argc, char** argv){
     vector<pair<string,double>> stat2; // string: atom pair; double: energy
     cout << "Computing the pseudo-energies..." << endl;
 
+
+
+    // Information theory below...
+    //vector<double> freq_avg; // XXX Should be exactly the same as frequencies[xx]
+    vector<double> freq_sd;
+    vector<double> info_avg;
+    vector<double> info_sd;
+    for (size_t i=0; i<binlimits.size(); ++i){
+        double freq_sum = 0;
+        double freq_sum_of_squares = 0;
+        double info_sum = 0;
+        double info_sum_of_squares = 0;
+        for(auto& it : frequencies){
+            if (it.first != "xx"){
+                double freq = it.second[i];
+                freq_sum+=nntotal[it.first]*freq;
+                freq_sum_of_squares+=nntotal[it.first]*pow(freq, 2);
+                if (freq > 0){
+                    double info = -1*log(freq);
+                    info_sum+=nntotal[it.first]*info;
+                    info_sum_of_squares+=nntotal[it.first]*pow(info, 2);
+                }
+            }
+        }
+        double freq_average = freq_sum/double(xxtotal);
+        double freq_variance = (freq_sum_of_squares/double(xxtotal)) - pow(freq_average, 2);
+        double freq_deviation = sqrt(freq_variance);
+        //freq_avg.push_back(freq_average); // XXX
+        freq_sd.push_back(freq_deviation);
+
+        double info_average = info_sum/double(xxtotal);
+        double info_variance = (info_sum_of_squares/double(xxtotal)) - pow(info_average, 2);
+        double info_deviation = sqrt(info_variance);
+        info_avg.push_back(info_average);
+        info_sd.push_back(info_deviation);
+    }
+
+
+
+    bool useRefState = (info.empty()) ? true : false;
+
+
+
     // For each atom pair
     bool useFreqFiles = (dirFreqFiles.empty()) ? false : true; // -Z option
     for(auto& it : frequencies){
@@ -790,13 +856,78 @@ int main(int argc, char** argv){
             vector<double> energies;
             // For each distance bin
             for (size_t i=0; i<it.second.size(); ++i){
-                double energy = 0;
-                double obs = it.second[i]; // Observed frequency
-                double ref = (useFreqFiles) ? reffreq[i] : frequencies["xx"][i]; // Reference frequency
-                if (ref > 0){
-                    energy = -1*log(obs/ref);
+                double energy = 12345;
+                double obs = it.second[i];
+
+                if (useRefState){
+                    double ref = (useFreqFiles) ? reffreq[i] : frequencies["xx"][i]; // Reference frequency
+                    if (ref > 0){
+                        if (reldiff == "ref"){
+                            energy = (ref-obs)/ref;
+                        }
+                        else if (reldiff == "obs"){
+                            energy = (ref-obs)/obs;
+                        }
+                        else if (reldiff == "max"){
+                            double max = (obs > ref) ? obs : ref;
+                            energy = (ref-obs)/max;
+                        }
+                        else if (reldiff == "min"){
+                            double min = (obs < ref) ? obs : ref;
+                            energy = (ref-obs)/min;
+                        }
+                        else if (reldiff == "avg"){
+                            double avg = (obs+ref)/2;
+                            energy = (ref-obs)/avg;
+                        }
+                        else if (reldiff == "geo"){
+                            double geo = sqrt(ref*obs);
+                            energy = (ref-obs)/geo;
+                        }
+                        else if (reldiff == "odd"){
+                            double odd = ref*obs;
+                            energy = (ref-obs)/odd;
+                        }
+                        else if (reldiff == "har"){
+                            double har = 2/(1/obs + 1/ref);
+                            energy = (ref-obs)/har;
+                        }
+                        else if (reldiff == "rms"){
+                            double rms = sqrt((pow(ref,2)+pow(obs,2))/2);
+                            energy = (ref-obs)/rms;
+                        }
+                        else if (reldiff == "zscore"){
+                            energy = (ref-obs)/freq_sd[i];
+                        }
+                        else{
+                            if (obs > 0){
+                                energy = -1*log(obs/ref);
+                            }
+                        }
+                    }
                 }
-                if (std::isinf(energy) or energy == 0){ // Leave std::
+                else if (obs > 0){
+                    double info_obs = -1*log(obs);
+                    if (info == "xxx"){
+                        energy = info_obs - info_avg[i];
+                    }
+		    else if (info == "ref"){
+                        energy = (info_obs - info_avg[i])/info_avg[i];
+                    }
+                    else if (info == "zscore"){
+                        energy = (info_obs - info_avg[i])/info_sd[i];
+                    }
+                    else if (info == "log"){
+                        energy = log(info_obs/info_avg[i]);
+                    }
+                }
+
+                if (std::isinf(energy) or energy != energy){ // Leave std::
+                    cerr << "ERROR: " << it.first << "; BIN: " << binlimits[i] << endl;
+                    exit(1);
+                }
+
+                if (energy == 12345){
                     energy = emax;
                 }
                 energies.push_back(energy);
