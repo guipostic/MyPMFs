@@ -90,7 +90,7 @@ int main(int argc, char** argv){
         "    -U              Same as -Y, but for large input datasets (Note: -U or -Y option implies an early stoppage of the program)\n"
         "    -Z    string    Directory containing the pre-computed frequencies (*.frq) to use as reference frequencies\n"
         "\n"
-        "    Work in progress... (requires -A option to be activated):\n"
+        "    Work in progress...\n"
         "    -B              Rel diff: ref, obs, min, max, geo, har, avg, odd, rms, zscore\n"
         "    -C              Info: xxx, log, ref, zscore\n"
         "\n"
@@ -233,12 +233,6 @@ int main(int argc, char** argv){
     }
     if(!info.empty() and !(find(possible_info.begin(), possible_info.end(), info) != possible_info.end())) {
         cerr << "\nError: Invalid -C argument\n" << endl; return 1;
-    }
-    if(!reldiff.empty() and !largeinput){
-        cerr << "\nError: Using -B argument requires -A option to be activated\n" << endl; return 1;
-    }
-    if(!info.empty() and !largeinput){
-        cerr << "\nError: Using -C argument requires -A option to be activated\n" << endl; return 1;
     }
 
     bool allatom = (cacbbb == "allatom" or cacbbb == "backbone" or cacbbb == "sidechains") ? true : false;
@@ -495,8 +489,8 @@ int main(int argc, char** argv){
             }
         }
 
-        // If -X, -U, or -A options activated: on-the-fly computing of the histogram
-        if (xwriteRefFreq or uwriteFreq or largeinput){
+        // If -X, -U, -A, -B, or -C options activated: on-the-fly computing of the histogram
+        if (xwriteRefFreq or uwriteFreq or largeinput or reldiff == "zscore" or !info.empty()){
             sort(sqdist.begin(), sqdist.end());
             int binindex = 0;
             for(size_t j=0; j<sqdist.size(); ++j){
@@ -800,36 +794,37 @@ int main(int argc, char** argv){
     vector<double> freq_sd;
     vector<double> info_avg;
     vector<double> info_sd;
-    for (size_t i=0; i<binlimits.size(); ++i){
-        double freq_sum = 0;
-        double freq_sum_of_squares = 0;
-        double info_sum = 0;
-        double info_sum_of_squares = 0;
-        for(auto& it : frequencies){
-            if (it.first != "xx"){
-                double freq = it.second[i];
-                freq_sum+=nntotal[it.first]*freq;
-                freq_sum_of_squares+=nntotal[it.first]*pow(freq, 2);
-                if (freq > 0){
-                    double info = -1*log(freq);
-                    info_sum+=nntotal[it.first]*info;
-                    info_sum_of_squares+=nntotal[it.first]*pow(info, 2);
+    if (reldiff == "zscore" or !info.empty()){
+        for (size_t i=0; i<binlimits.size(); ++i){
+            double freq_sum = 0;
+            double freq_sum_of_squares = 0;
+            double info_sum = 0;
+            double info_sum_of_squares = 0;
+            for(auto& it : frequencies){
+                if (it.first != "xx"){
+                    double freq = it.second[i];
+                    freq_sum+=nntotal[it.first]*freq;
+                    freq_sum_of_squares+=nntotal[it.first]*pow(freq, 2);
+                    if (freq > 0){
+                        double info = -1*log(freq);
+                        info_sum+=nntotal[it.first]*info;
+                        info_sum_of_squares+=nntotal[it.first]*pow(info, 2);
+                    }
                 }
             }
+            double freq_average = freq_sum/double(xxtotal);
+            double freq_variance = (freq_sum_of_squares/double(xxtotal)) - pow(freq_average, 2);
+            double freq_deviation = sqrt(freq_variance);
+            //freq_avg.push_back(freq_average); // XXX
+            freq_sd.push_back(freq_deviation);
+    
+            double info_average = info_sum/double(xxtotal);
+            double info_variance = (info_sum_of_squares/double(xxtotal)) - pow(info_average, 2);
+            double info_deviation = sqrt(info_variance);
+            info_avg.push_back(info_average);
+            info_sd.push_back(info_deviation);
         }
-        double freq_average = freq_sum/double(xxtotal);
-        double freq_variance = (freq_sum_of_squares/double(xxtotal)) - pow(freq_average, 2);
-        double freq_deviation = sqrt(freq_variance);
-        //freq_avg.push_back(freq_average); // XXX
-        freq_sd.push_back(freq_deviation);
-
-        double info_average = info_sum/double(xxtotal);
-        double info_variance = (info_sum_of_squares/double(xxtotal)) - pow(info_average, 2);
-        double info_deviation = sqrt(info_variance);
-        info_avg.push_back(info_average);
-        info_sd.push_back(info_deviation);
     }
-
 
 
     bool useRefState = (info.empty()) ? true : false;
