@@ -297,6 +297,8 @@ int main(int argc, char** argv){
             cerr << "Warning: KDE are not applied when -X or U option is activated" << endl;
         if (stillwrite){cerr << "\nError: No need for -g option when KDE activated:\n"
                              << "The interatomic distance files are written anyway" << endl; return 1;}
+        if (!dirFreqFiles.empty())
+            cerr << "Warning: KDE options are useless with -Z option activated" << endl;
     }
 
     if (useR){
@@ -438,7 +440,12 @@ int main(int argc, char** argv){
         for (auto binlimit : binlimits)
             nncounts[atomcombo][binlimit] = 0;
 
- 
+
+
+
+
+
+if (dirFreqFiles.empty()){ 
     // For each PDB file of the list
     for (size_t k=0; k<inputpdbs.size(); ++k){
         string filename = listpdb.empty() ? inputpdbs[k] : findfile(inputpdbs[k], inputdir);
@@ -489,8 +496,12 @@ int main(int argc, char** argv){
             }
         }
 
-        // If -X, -U, -A, -B, or -C options activated: on-the-fly computing of the histogram
-        if (xwriteRefFreq or uwriteFreq or largeinput or reldiff == "zscore" or !info.empty()){
+
+
+// FIXME below
+        // If -X, -U, -A, -B, -C or -Z options activated:
+        // on-the-fly computing of the histogram
+        //if (xwriteRefFreq or uwriteFreq or largeinput or reldiff == "zscore" or !info.empty() or !dirFreqFiles.empty()){
             sort(sqdist.begin(), sqdist.end());
             int binindex = 0;
             for(size_t j=0; j<sqdist.size(); ++j){
@@ -504,9 +515,10 @@ int main(int argc, char** argv){
                 xxcounts[binlimits[binindex]]++; // -X option
                 xxtotal++; // -X option
             }
-        }
+        //}
         // Else: fill the map (Note: sqdist, atompairs, and pairID have the same size)
-        else{
+        //if (!xwriteRefFreq and !uwriteFreq and !largeinput and dirFreqFiles.empty()){
+        if (!xwriteRefFreq and !uwriteFreq and !largeinput){
             for(size_t i=0; i<sqdist.size(); ++i){
                 allsqdist[atompairs[i]].push_back(sqdist[i]);
                 if(!allatom) stat1.emplace_back(pairID[i],sqdist[i]);
@@ -515,7 +527,8 @@ int main(int argc, char** argv){
         }
         cout.flush();
         cout << "\r" << k+1 << "/" << inputpdbs.size();
-    }
+    } // END OF foreach PDB file
+
     cout << "\n" << xxtotal << " distances have been computed" << endl;
     cout << "Done\n" << endl;
     /* All the coordinate files have been processed! */
@@ -525,6 +538,12 @@ int main(int argc, char** argv){
     cout << "*Structures detected as monomeric:  n = " << monochains << endl;
     cout << "*Structures detected as multimeric: n = " << multichains << "\n" << endl;
     if (monochains == 0 and multichains == 0){cerr << "Error: No chain found. Program stopped." << endl; exit(1);}
+}
+
+
+
+
+
 
 
 
@@ -558,7 +577,7 @@ int main(int argc, char** argv){
 
 
     // Listing atom pairs that have not been found
-    if (!largeinput){ // Requires -A option not activated (otherwise, allsqdist is empty)
+    if (!largeinput and dirFreqFiles.empty()){ // Requires these options not activated (otherwise, allsqdist is empty)
         vector<string> missingpairs;
         for (auto atomcombo : atomcombos){
             int found = 0;
@@ -592,196 +611,223 @@ int main(int argc, char** argv){
 
     map<string, vector<double>> frequencies; // key = atom pair; value = vector of frequencies per distance bin
 
-    int counter = 0;
-    cout << counter << "/" << total;
-    if(writedat) tfh.open (jobdir+"/xx.dat");
 
-
-    if (largeinput){
-        for (auto atomcombo : atomcombos)
-            for (auto binlimit : binlimits)
-                frequencies[atomcombo].push_back(double(nncounts[atomcombo][binlimit])/double(nntotal[atomcombo]));
- 
-        if(refdistrib.empty())
-            for (auto binlimit : binlimits)
-                frequencies["xx"].push_back(double(xxcounts[binlimit])/double(xxtotal));
-    }
-    else{
-        // For each key of the map (= atom pair): create a file that contains distances (e.g. "ICALCA.dat", "LCAVCA.dat" etc.)
-        for(auto& it : allsqdist){
-            if(writedat){
-                ofstream ofh;
-                if (!writeRefFreq)
-                    ofh.open (jobdir+"/"+it.first+".dat");
-                // Write all the distances in the file
-                for(auto distance : it.second){
-                    if (!writeRefFreq)
-                        ofh << distance << endl;
-                    if (!writeFreq)
-                        tfh << distance << endl; // and in the total file xx.dat
-                }
-                ofh.close();
-            }
-            stat3.emplace_back(it.first,(double)it.second.size()); // Cast to double because of the sortbysec function
-    
-            if (!useR){
-                sort(it.second.begin(), it.second.end());
-                int binindex = 0;
-                vector<int> counts(binlimitssize);
-                for (double distance : it.second){
-     
-                    while(binlimits[binindex] < distance){
-                        binindex++;
-                    }
-                    counts[binindex]++;
-                    totalcounts[binindex]++;
-                }
-                for (int count : counts){
-                    frequencies[it.first].push_back((double)count/(double)it.second.size());
-                }
-                totalsize+=it.second.size();
-            }
-    
-            counter++;
-            cout.flush();
-            cout << "\r" << counter << "/" << total;
-        }
-    }
-    if(writedat) tfh.close();
-    string note1 = (writeRefFreq and writedat) ? " (-W options activated: Only xx.dat has been written)" : "";
-    cout << "\nDone" << note1 << "\n" << endl;
-
-    if (!useR){
-        if (refdistrib.empty()){
-            for (int totalcount : totalcounts)
-                frequencies["xx"].push_back((double)totalcount/(double)totalsize);
-        }
-        if (writeRefFreq){
-            map<string, vector<double>>& reffrequencies(frequencies);
-            f_writeRefFreq(reffrequencies, jobdir);
-            return 0;
-        }
-    }
-    else{ // if (useR)
-        if (writeRefFreq)
-            allsqdist.clear();
-
-        if (refdistrib.empty() and !writeFreq) // if no -R and no -Y
-            allsqdist["xx"]; // Add the "total atom pair"
-
-        counter = 0;
-        string plot = (dontplot.empty()) ? " and plotting" : "";
-        cout << "Computing" << plot << " the distance frequencies for every pair of atoms:" << endl;
+    // Below is a long procedure (with multiple options) to compute all the frequencies
+    // Otherwise, read files that contain pre-computed frequencies
+    if (dirFreqFiles.empty()){
+        int counter = 0;
         cout << counter << "/" << total;
+        if(writedat) tfh.open (jobdir+"/xx.dat");
     
-        // For each atom pair: call R script to compute distance frequencies
-        for(auto& it : allsqdist){
-            string cmd;
-            string cmdout;
-            string infilename = jobdir+"/"+it.first+".dat";
- 
-            // If input size too large:
-            // Use another bandwidth selector instead
-            string sizecmd = "du -k "+infilename+" | cut -f1";
-            string sizeout = exec(sizecmd);
-            sizeout.erase(remove(sizeout.begin(), sizeout.end(), '\n'), sizeout.end());
-            int maxsize = (it.first == "xx") ? MAX_SIZE_KDEXX : MAX_SIZE_KDE; // One can wait longer if it's only for the xx pair!
- 
-            if (atoi(sizeout.c_str()) > maxsize and (bwSJ or bwCV)){
-                cmd = "Rscript "+rscripts+"/kde.R "+infilename+" "+to_string(binwidth)+" "+to_string(distmax)+kernel+altbwselector2+adjust+cut+dontplot+" 2> /dev/null";
-                cmdout = exec(cmd);
-                cerr << " Warning: Input too large:" << altbwselector2 << " bandwidth selector used for " << it.first << " atom pair" << endl;
+    
+        if (largeinput){
+            for (auto atomcombo : atomcombos)
+                for (auto binlimit : binlimits)
+                    frequencies[atomcombo].push_back(double(nncounts[atomcombo][binlimit])/double(nntotal[atomcombo]));
+     
+            if(refdistrib.empty())
+                for (auto binlimit : binlimits)
+                    frequencies["xx"].push_back(double(xxcounts[binlimit])/double(xxtotal));
+        }
+        else{
+            // For each key of the map (= atom pair): create a file that contains distances (e.g. "ICALCA.dat", "LCAVCA.dat" etc.)
+            for(auto& it : allsqdist){
+                if(writedat){
+                    ofstream ofh;
+                    if (!writeRefFreq)
+                        ofh.open (jobdir+"/"+it.first+".dat");
+                    // Write all the distances in the file
+                    for(auto distance : it.second){
+                        if (!writeRefFreq)
+                            ofh << distance << endl;
+                        if (!writeFreq)
+                            tfh << distance << endl; // and in the total file xx.dat
+                    }
+                    ofh.close();
+                }
+                stat3.emplace_back(it.first,(double)it.second.size()); // Cast to double because of the sortbysec function
+        
+                if (!useR){
+                    sort(it.second.begin(), it.second.end());
+                    int binindex = 0;
+                    vector<int> counts(binlimitssize);
+                    for (double distance : it.second){
+         
+                        while(binlimits[binindex] < distance){
+                            binindex++;
+                        }
+                        counts[binindex]++;
+                        totalcounts[binindex]++;
+                    }
+                    for (int count : counts){
+                        frequencies[it.first].push_back((double)count/(double)it.second.size());
+                    }
+                    totalsize+=it.second.size();
+                }
+        
+                counter++;
+                cout.flush();
+                cout << "\r" << counter << "/" << total;
             }
-            else{
-                cmd = "Rscript "+rscripts+"/kde.R "+infilename+" "+to_string(binwidth)+" "+to_string(distmax)+kernel+bandwidth+adjust+cut+dontplot+" 2> /dev/null";
-                cmdout = exec(cmd);
+        }
+        if(writedat) tfh.close();
+        string note1 = (writeRefFreq and writedat) ? " (-W options activated: Only xx.dat has been written)" : "";
+        cout << "\nDone" << note1 << "\n" << endl;
+    
+        if (!useR){
+            if (refdistrib.empty() and !largeinput){ // FIXME overlap with largeinput
+                for (int totalcount : totalcounts)
+                    frequencies["xx"].push_back((double)totalcount/(double)totalsize);
             }
- 
-            // If the R implementation of SJ bandwidth selection fails (may happen for large samples):
-            // Use another bandwidth selector instead
-            if (cmdout.empty()){
-                if (bwSJ){
-                    cmd = "Rscript "+rscripts+"/kde.R "+infilename+" "+to_string(binwidth)+" "+to_string(distmax)+kernel+altbwselector1+adjust+cut+dontplot+" 2> /dev/null";
+            if (writeRefFreq){
+                map<string, vector<double>>& reffrequencies(frequencies);
+                f_writeRefFreq(reffrequencies, jobdir);
+                return 0;
+            }
+        }
+        else{ // if (useR)
+            if (writeRefFreq)
+                allsqdist.clear();
+    
+            if (refdistrib.empty() and !writeFreq) // if no -R and no -Y
+                allsqdist["xx"]; // Add the "total atom pair"
+    
+            counter = 0;
+            string plot = (dontplot.empty()) ? " and plotting" : "";
+            cout << "Computing" << plot << " the distance frequencies for every pair of atoms:" << endl;
+            cout << counter << "/" << total;
+        
+            // For each atom pair: call R script to compute distance frequencies
+            for(auto& it : allsqdist){
+                string cmd;
+                string cmdout;
+                string infilename = jobdir+"/"+it.first+".dat";
+     
+                // If input size too large:
+                // Use another bandwidth selector instead
+                string sizecmd = "du -k "+infilename+" | cut -f1";
+                string sizeout = exec(sizecmd);
+                sizeout.erase(remove(sizeout.begin(), sizeout.end(), '\n'), sizeout.end());
+                int maxsize = (it.first == "xx") ? MAX_SIZE_KDEXX : MAX_SIZE_KDE; // One can wait longer if it's only for the xx pair!
+     
+                if (atoi(sizeout.c_str()) > maxsize and (bwSJ or bwCV)){
+                    cmd = "Rscript "+rscripts+"/kde.R "+infilename+" "+to_string(binwidth)+" "+to_string(distmax)+kernel+altbwselector2+adjust+cut+dontplot+" 2> /dev/null";
                     cmdout = exec(cmd);
-                    if (cmdout.find("breaks") && cmdout.find("hist")){
-                        cerr << "\nError: The distance range (defined by -m and -n args) is too short for the chosen bin width (-w arg)" << endl;
-                        cout << "Program stopped." << endl; exit(1);
-                    }
-                    else{
-                        cerr << " Warning: Problem with R:" << altbwselector1 << " bandwidth selector used for " << it.first << " atom pair" << endl;
-                    }
+                    cerr << " Warning: Input too large:" << altbwselector2 << " bandwidth selector used for " << it.first << " atom pair" << endl;
                 }
                 else{
-                    cerr << "Unexpected error with atom pair " << it.first << endl;
-                    cout << "Program stopped." << endl; exit(1);
+                    cmd = "Rscript "+rscripts+"/kde.R "+infilename+" "+to_string(binwidth)+" "+to_string(distmax)+kernel+bandwidth+adjust+cut+dontplot+" 2> /dev/null";
+                    cmdout = exec(cmd);
                 }
-            }
-
-            stringstream iss(cmdout);
-            string freq;
-            while (iss >> freq){
-                if (freq == "NA"){
-                    freq = "0";
+     
+                // If the R implementation of SJ bandwidth selection fails (may happen for large samples):
+                // Use another bandwidth selector instead
+                if (cmdout.empty()){
+                    if (bwSJ){
+                        cmd = "Rscript "+rscripts+"/kde.R "+infilename+" "+to_string(binwidth)+" "+to_string(distmax)+kernel+altbwselector1+adjust+cut+dontplot+" 2> /dev/null";
+                        cmdout = exec(cmd);
+                        if (cmdout.find("breaks") && cmdout.find("hist")){
+                            cerr << "\nError: The distance range (defined by -m and -n args) is too short for the chosen bin width (-w arg)" << endl;
+                            cout << "Program stopped." << endl; exit(1);
+                        }
+                        else{
+                            cerr << " Warning: Problem with R:" << altbwselector1 << " bandwidth selector used for " << it.first << " atom pair" << endl;
+                        }
+                    }
+                    else{
+                        cerr << "Unexpected error with atom pair " << it.first << endl;
+                        cout << "Program stopped." << endl; exit(1);
+                    }
                 }
-                frequencies[it.first].push_back(atof(freq.c_str()));
+    
+                stringstream iss(cmdout);
+                string freq;
+                while (iss >> freq){
+                    if (freq == "NA"){
+                        freq = "0";
+                    }
+                    frequencies[it.first].push_back(atof(freq.c_str()));
+                }
+                counter++;
+                cout.flush();
+                if (it.first != "xx")
+                    cout << "\r" << counter << "/" << total;
+                else
+                    // The "allsqdist" map is ordered, thus the xx pair is last
+                    cout << "\nDone\n\nComputing the " << total+1 << "th pair: two atoms of any type...";
             }
-            counter++;
-            cout.flush();
-            if (it.first != "xx")
-                cout << "\r" << counter << "/" << total;
-            else
-                // The "allsqdist" map is ordered, thus the xx pair is last
-                cout << "\nDone\n\nComputing the " << total+1 << "th pair: two atoms of any type...";
+            cout << "\nDone\n" << endl;
+    
+            if (writeRefFreq){
+                map<string, vector<double>>& reffrequencies(frequencies);
+                f_writeRefFreq(reffrequencies, jobdir);
+                return 0;
+            }
+        } // END OF if useR
+    
+        // If using a pre-computed reference distribution
+        if (!refdistrib.empty()){
+            cout << "Using reference distribution from input file named \"" << refdistrib << "\"" << endl;
+            ifstream fh(refdistrib);
+            if(!fh){ cerr << "Error while opening reference distribution file \"" << refdistrib << "\"" << endl; exit(1); }
+            string freqvalue;
+            while(getline(fh, freqvalue)){
+                frequencies["xx"].push_back(atof(freqvalue.c_str()));
+            }
+            fh.close();
+    
+            size_t providedsize = frequencies["xx"].size();
+            size_t expectedsize = (frequencies.begin()->second).size();
+    
+            // Checking whether the input file has the correct number of bins
+            if (providedsize != expectedsize){
+                cerr << "Error: The number of bins in your reference distribution is not compatible with the other parameters that you have selected." << endl;
+                cerr << "       Number of bins (= lines) in your reference file = " << providedsize << endl;
+                cerr << "       Number of bins expected = " << expectedsize << endl;
+                cerr << "Program stopped." << endl;
+                exit(1);
+            }
         }
-        cout << "\nDone\n" << endl;
-
-        if (writeRefFreq){
-            map<string, vector<double>>& reffrequencies(frequencies);
-            f_writeRefFreq(reffrequencies, jobdir);
+    
+    
+    
+        if (writeFreq){
+            cout << "Writing the frequencies for every atomic pair: " << total << " *.frq files..." << endl;
+            for(auto& it : frequencies){
+                ofstream freqfh;
+                freqfh.open(jobdir+"/"+it.first+".frq");
+                for (size_t i=0; i<it.second.size(); ++i){
+                    freqfh << it.second[i] << endl;
+                }
+                freqfh.close();
+            }
+            cout << "Done" << endl;
             return 0;
         }
-    } // END OF if useR
-
-    // If using a pre-computed reference distribution
-    if (!refdistrib.empty()){
-        cout << "Using reference distribution from input file named \"" << refdistrib << "\"" << endl;
-        ifstream fh(refdistrib);
-        if(!fh){ cerr << "Error while opening reference distribution file \"" << refdistrib << "\"" << endl; exit(1); }
-        string freqvalue;
-        while(getline(fh, freqvalue)){
-            frequencies["xx"].push_back(atof(freqvalue.c_str()));
-        }
-        fh.close();
-
-        size_t providedsize = frequencies["xx"].size();
-        size_t expectedsize = (frequencies.begin()->second).size();
-
-        // Checking whether the input file has the correct number of bins
-        if (providedsize != expectedsize){
-            cerr << "Error: The number of bins in your reference distribution is not compatible with the other parameters that you have selected." << endl;
-            cerr << "       Number of bins (= lines) in your reference file = " << providedsize << endl;
-            cerr << "       Number of bins expected = " << expectedsize << endl;
-            cerr << "Program stopped." << endl;
-            exit(1);
-        }
     }
-
-
-
-    if (writeFreq){
-        cout << "Writing the frequencies for every atomic pair: " << total << " *.frq files..." << endl;
-        for(auto& it : frequencies){
-            ofstream freqfh;
-            freqfh.open(jobdir+"/"+it.first+".frq");
-            for (size_t i=0; i<it.second.size(); ++i){
-                freqfh << it.second[i] << endl;
+    
+    else{ // If !dirFreqFiles.empty()
+        for (auto atomcombo : atomcombos){
+            ifstream freqfh;
+            freqfh.open(dirFreqFiles+"/"+atomcombo+".frq");
+            string frequency;
+            while(getline(freqfh, frequency)){
+                frequencies[atomcombo].push_back(stod(frequency));
             }
-            freqfh.close();
-        }
-        cout << "Done" << endl;
-        return 0;
-    }
 
+            ifstream countfh;
+            countfh.open(dirFreqFiles+"/"+atomcombo+".dat");
+            //string count;
+            //while(getline(countfh, count)){
+            //    nntotal[atomcombo]++;
+            //}
+            unsigned long int increment = count(istreambuf_iterator<char>(countfh), istreambuf_iterator<char>(), '\n');
+            nntotal[atomcombo]+=increment;
+            xxtotal+=increment;
+//cout << ".";
+        }
+    }
+ 
 
 
     vector<pair<string,double>> stat2; // string: atom pair; double: energy
@@ -790,11 +836,11 @@ int main(int argc, char** argv){
 
 
     // Information theory below...
-    //vector<double> freq_avg; // XXX Should be exactly the same as frequencies[xx]
+    vector<double> freq_avg; // XXX Should be exactly the same as frequencies[xx]
     vector<double> freq_sd;
     vector<double> info_avg;
     vector<double> info_sd;
-    if (reldiff == "zscore" or !info.empty()){
+    //if (reldiff == "zscore" or !info.empty()){
         for (size_t i=0; i<binlimits.size(); ++i){
             double freq_sum = 0;
             double freq_sum_of_squares = 0;
@@ -803,28 +849,37 @@ int main(int argc, char** argv){
             for(auto& it : frequencies){
                 if (it.first != "xx"){
                     double freq = it.second[i];
-                    freq_sum+=nntotal[it.first]*freq;
-                    freq_sum_of_squares+=nntotal[it.first]*pow(freq, 2);
+if (freq > 1 or freq < 0){
+    cout << "OUCH=" << freq << "; AA=" << it.first << "; BIN=" << i << endl;
+}
+//cout << "YO=" << freq << endl;
+//cout << "ADD=" << double(nntotal[it.first])*freq << "=" << double(nntotal[it.first]) << "x" << freq << endl;
+                    freq_sum+=double(nntotal[it.first])*freq;
+                    freq_sum_of_squares+=double(nntotal[it.first])*pow(freq, 2);
                     if (freq > 0){
                         double info = -1*log(freq);
-                        info_sum+=nntotal[it.first]*info;
-                        info_sum_of_squares+=nntotal[it.first]*pow(info, 2);
+                        info_sum+=double(nntotal[it.first])*info;
+                        info_sum_of_squares+=double(nntotal[it.first])*pow(info, 2);
                     }
                 }
             }
             double freq_average = freq_sum/double(xxtotal);
+//cout << "PUSH=" << freq_average << endl;
             double freq_variance = (freq_sum_of_squares/double(xxtotal)) - pow(freq_average, 2);
             double freq_deviation = sqrt(freq_variance);
-            //freq_avg.push_back(freq_average); // XXX
+            if (!dirFreqFiles.empty()){
+                freq_avg.push_back(freq_average); // XXX
+            }
             freq_sd.push_back(freq_deviation);
-    
+ 
             double info_average = info_sum/double(xxtotal);
             double info_variance = (info_sum_of_squares/double(xxtotal)) - pow(info_average, 2);
             double info_deviation = sqrt(info_variance);
             info_avg.push_back(info_average);
             info_sd.push_back(info_deviation);
         }
-    }
+    //}
+
 
 
     bool useRefState = (info.empty()) ? true : false;
@@ -832,20 +887,9 @@ int main(int argc, char** argv){
 
 
     // For each atom pair
-    bool useFreqFiles = (dirFreqFiles.empty()) ? false : true; // -Z option
     for(auto& it : frequencies){
+//cout << "PAIR=" << it.first << endl;
         if (it.first != "xx"){
-            vector<double> reffreq;
-            ifstream freqfh;
-
-            if (useFreqFiles){
-                freqfh.open(dirFreqFiles+"/"+it.first+".frq");
-                string frequency;
-                while(getline(freqfh, frequency)){
-                    reffreq.push_back(stod(frequency));
-                }
-            }
-
             ofstream ofh;
             ofh.open (jobdir+"/"+it.first+".nrg");
             vector<double> energies;
@@ -853,9 +897,11 @@ int main(int argc, char** argv){
             for (size_t i=0; i<it.second.size(); ++i){
                 double energy = 12345;
                 double obs = it.second[i];
+//cout << "FRQ=" << it.second[i] << endl;
 
                 if (useRefState){
-                    double ref = (useFreqFiles) ? reffreq[i] : frequencies["xx"][i]; // Reference frequency
+                    double ref = (!dirFreqFiles.empty()) ? freq_avg[i] : frequencies["xx"][i]; // Reference frequency
+//cout << "REF=" << ref << endl;
                     if (ref > 0){
                         if (reldiff == "ref"){
                             energy = (ref-obs)/ref;
@@ -918,7 +964,7 @@ int main(int argc, char** argv){
                 }
 
                 if (std::isinf(energy) or energy != energy){ // Leave std::
-                    cerr << "ERROR: " << it.first << "; BIN: " << binlimits[i] << endl;
+                    cerr << "ERROR: " << it.first << "; BIN: " << binlimits[i] << "; OBS=" << obs << "; ENERGY=" << energy << endl;
                     exit(1);
                 }
 
@@ -981,7 +1027,8 @@ int main(int argc, char** argv){
     cout << "Writing files";
 
     int count = 0;
-    if (!allatom and !largeinput){
+    if (!allatom and !largeinput and reldiff != "zscore" and info.empty() and dirFreqFiles.empty()){
+    //if (!allatom and !largeinput){
         myfh.open (jobdir+"/"+"top_distances.tsv");
         cout << " \"top_distances.tsv\",";
         while (count<100){
@@ -1003,7 +1050,7 @@ int main(int argc, char** argv){
     }
     myfh.close();
 
-    if (!largeinput){
+    if (!largeinput and dirFreqFiles.empty()){
         myfh.open (jobdir+"/"+"top_occurrences.tsv");
         count = total-1;
         cout << " and \"top_occurrences.tsv\"";

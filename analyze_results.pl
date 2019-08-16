@@ -40,7 +40,7 @@ my %hashdecoy_rmsd;
 foreach my $file (@rmsd_files){
     chomp $file;
     my $pdb = "";
-    if ($file =~ m/\/home\/actarus\/GITHUB\/3DRobot_set\/(\w+)\/list.txt/){
+    if ($file =~ m/\/home\/\w+\/GITHUB\/3DRobot_set\/(\w+)\/list.txt/){
         $pdb = $1;
     }
     my @rmsd_file = `cat $file`;
