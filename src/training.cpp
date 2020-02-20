@@ -1,10 +1,10 @@
 /*
  * training.cpp
  *
- * The training part of the MyPMFs suite
+ * The MODIFIED training part of the MyPMFs suite
  *
  * ---------------------------------------------------------------------
- * Copyright (C) 2019 Guillaume Postic (guillaume.postic@univ-paris-diderot.fr)
+ * Copyright (C) 2020 Guillaume Postic (guillaume.postic@univ-paris-diderot.fr)
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
@@ -330,7 +330,7 @@ int main(int argc, char** argv){
     else if (cacbbb == "backbone"){total = 3240;}
     else {total = 210;} // CA, CB, BB, SC1
 
-    string dontplot = (allatom) ? " 1" : ""; // Prevent the creation of 14028 (allatom), or 3240 (backbone), or 3916 (sidechains) plots
+    string dontplot = (allatom) ? " 1" : ""; // Prevent the creation of N plots, where N is 14028 (allatom), or 3240 (backbone), or 3916 (sidechains)
 
     /*****************************
     *                            *
@@ -419,7 +419,7 @@ int main(int argc, char** argv){
     // ...while defining the bin limits into a vector
     vector<double> binlimits;
     for (double i=distmin+binwidth; i<=distmax; i+=binwidth){
-        // for loops using double (or float) variables are dangerous:
+        // XXX NOTE: for loops using double (or float) variables are dangerous
         stringstream istream;
         istream << fixed << setprecision(3) << i;
         istream >> i;
@@ -442,108 +442,97 @@ int main(int argc, char** argv){
 
 
 
-
-
-
-if (dirFreqFiles.empty()){ 
-    // For each PDB file of the list
-    for (size_t k=0; k<inputpdbs.size(); ++k){
-        string filename = listpdb.empty() ? inputpdbs[k] : findfile(inputpdbs[k], inputdir);
-
-        vector<string> filevec = file2vec(filename, three2one, atypes);
-
-        vector<string>& reffilevec(filevec);
-        // Declare three vectors
-        vector<float> sqdist; vector<string> atompairs; vector<string> pairID;
-        // Declare their three references
-        vector<float>& refsqdist(sqdist); vector<string>& refatompairs(atompairs); vector<string>& refpairID(pairID);
-        // For the current PDB file: find the chains
-        vector<string> chains = findchains(reffilevec);
-
-        // If chain name in input
-        if (inputchains[k] != "NA"){
-            // And if it actually exists
-            if (find(chains.begin(), chains.end(), inputchains[k]) != chains.end()){
-                chains.clear();
-                chains.push_back(inputchains[k]);
-            }
-            else{
-                cerr << " Warning: There is no chain " << inputchains[k] << " in " << filename << endl;
-                cerr << "Will process every chain found in " << filename << endl;
-            }
-        }
-
-        if (chains.size() == 1)
-            monochains++;
-        else if (chains.size() > 1)
-            multichains++;
-        else
-            cerr << "Warning: No chain found in " << filename << endl;
-
-        // For the current PDB file:
-        // For each combination of chain:
-        for (size_t i=0; i<chains.size(); ++i){
-            for (size_t j=i; j<chains.size(); ++j){
-                // Fill the three vectors (their references: refsqdist, refatompairs, refpairID)
-                if (interchain)
-                    if (chains[i] != chains[j])
-                        squaredist(inputpdbs[k], reffilevec, refsqdist, refatompairs, refpairID,
-                                     distmax, distmin, chains[i], chains[j], diffmin, diffmax, three2one, allatom);
-                if (intrachain) // NOT ELSE
-                    if (chains[i] == chains[j])
-                        squaredist(inputpdbs[k], reffilevec, refsqdist, refatompairs, refpairID,
-                                     distmax, distmin, chains[i], chains[j], diffmin, diffmax, three2one, allatom);
-            }
-        }
-
-
-
-// FIXME below
-        // If -X, -U, -A, -B, -C or -Z options activated:
-        // on-the-fly computing of the histogram
-        //if (xwriteRefFreq or uwriteFreq or largeinput or reldiff == "zscore" or !info.empty() or !dirFreqFiles.empty()){
-            sort(sqdist.begin(), sqdist.end());
-            int binindex = 0;
-            for(size_t j=0; j<sqdist.size(); ++j){
-                while(binlimits[binindex] < sqdist[j]){
-                    binindex++;
+    if (dirFreqFiles.empty()){
+        // For each PDB file of the list
+        for (size_t k=0; k<inputpdbs.size(); ++k){
+            string filename = listpdb.empty() ? inputpdbs[k] : findfile(inputpdbs[k], inputdir);
+    
+            vector<string> filevec = file2vec(filename, three2one, atypes);
+    
+            vector<string>& reffilevec(filevec);
+            // Declare three vectors
+            vector<float> sqdist; vector<string> atompairs; vector<string> pairID;
+            // Declare their three references
+            vector<float>& refsqdist(sqdist); vector<string>& refatompairs(atompairs); vector<string>& refpairID(pairID);
+            // For the current PDB file: find the chains
+            vector<string> chains = findchains(reffilevec);
+    
+            // If chain name in input
+            if (inputchains[k] != "NA"){
+                // And if it actually exists
+                if (find(chains.begin(), chains.end(), inputchains[k]) != chains.end()){
+                    chains.clear();
+                    chains.push_back(inputchains[k]);
                 }
-
-                nncounts[atompairs[j]][binlimits[binindex]]++; // -U option
-                nntotal[atompairs[j]]++; // -U option
-
-                xxcounts[binlimits[binindex]]++; // -X option
-                xxtotal++; // -X option
+                else{
+                    cerr << " Warning: There is no chain " << inputchains[k] << " in " << filename << endl;
+                    cerr << "Will process every chain found in " << filename << endl;
+                }
             }
-        //}
-        // Else: fill the map (Note: sqdist, atompairs, and pairID have the same size)
-        //if (!xwriteRefFreq and !uwriteFreq and !largeinput and dirFreqFiles.empty()){
-        if (!xwriteRefFreq and !uwriteFreq and !largeinput){
-            for(size_t i=0; i<sqdist.size(); ++i){
-                allsqdist[atompairs[i]].push_back(sqdist[i]);
-                if(!allatom) stat1.emplace_back(pairID[i],sqdist[i]);
-                xxtotal++;
+    
+            if (chains.size() == 1)
+                monochains++;
+            else if (chains.size() > 1)
+                multichains++;
+            else
+                cerr << "Warning: No chain found in " << filename << endl;
+    
+            // For the current PDB file:
+            // For each combination of chain:
+            for (size_t i=0; i<chains.size(); ++i){
+                for (size_t j=i; j<chains.size(); ++j){
+                    // Fill the three vectors (their references: refsqdist, refatompairs, refpairID)
+                    if (interchain)
+                        if (chains[i] != chains[j])
+                            squaredist(inputpdbs[k], reffilevec, refsqdist, refatompairs, refpairID,
+                                         distmax, distmin, chains[i], chains[j], diffmin, diffmax, three2one, allatom);
+                    if (intrachain) // NOT ELSE
+                        if (chains[i] == chains[j])
+                            squaredist(inputpdbs[k], reffilevec, refsqdist, refatompairs, refpairID,
+                                         distmax, distmin, chains[i], chains[j], diffmin, diffmax, three2one, allatom);
+                }
             }
-        }
-        cout.flush();
-        cout << "\r" << k+1 << "/" << inputpdbs.size();
-    } // END OF foreach PDB file
-
-    cout << "\n" << xxtotal << " distances have been computed" << endl;
-    cout << "Done\n" << endl;
-    /* All the coordinate files have been processed! */
-
-
-
-    cout << "*Structures detected as monomeric:  n = " << monochains << endl;
-    cout << "*Structures detected as multimeric: n = " << multichains << "\n" << endl;
-    if (monochains == 0 and multichains == 0){cerr << "Error: No chain found. Program stopped." << endl; exit(1);}
-}
-
-
-
-
-
+    
+    
+            // If -X, -U, -A, -B, -C options activated:
+            // on-the-fly computing of the histogram
+            if (xwriteRefFreq or uwriteFreq or largeinput or reldiff == "zscore" or !info.empty()){
+                sort(sqdist.begin(), sqdist.end());
+                int binindex = 0;
+                for(size_t j=0; j<sqdist.size(); ++j){
+                    while(binlimits[binindex] < sqdist[j]){
+                        binindex++;
+                    }
+    
+                    nncounts[atompairs[j]][binlimits[binindex]]++; // -U option
+                    nntotal[atompairs[j]]++; // -U option
+    
+                    xxcounts[binlimits[binindex]]++; // -X option
+                    xxtotal++; // -X option
+                }
+            }
+            // Else: fill the map (Note: sqdist, atompairs, and pairID have the same size)
+            if (!xwriteRefFreq and !uwriteFreq and !largeinput){
+                for(size_t i=0; i<sqdist.size(); ++i){
+                    allsqdist[atompairs[i]].push_back(sqdist[i]);
+                    if(!allatom) stat1.emplace_back(pairID[i],sqdist[i]);
+                    xxtotal++;
+                }
+            }
+            cout.flush();
+            cout << "\r" << k+1 << "/" << inputpdbs.size();
+        } // END OF foreach PDB file
+    
+        cout << "\n" << xxtotal << " distances have been computed" << endl;
+        cout << "Done\n" << endl;
+        /* All the coordinate files have been processed! */
+    
+    
+    
+        cout << "*Structures detected as monomeric:  n = " << monochains << endl;
+        cout << "*Structures detected as multimeric: n = " << multichains << "\n" << endl;
+        if (monochains == 0 and multichains == 0){cerr << "Error: No chain found. Program stopped." << endl; exit(1);}
+    }
 
 
 
@@ -824,7 +813,6 @@ if (dirFreqFiles.empty()){
             unsigned long int increment = count(istreambuf_iterator<char>(countfh), istreambuf_iterator<char>(), '\n');
             nntotal[atomcombo]+=increment;
             xxtotal+=increment;
-//cout << ".";
         }
     }
  
@@ -840,7 +828,8 @@ if (dirFreqFiles.empty()){
     vector<double> freq_sd;
     vector<double> info_avg;
     vector<double> info_sd;
-    //if (reldiff == "zscore" or !info.empty()){
+
+    if (reldiff == "zscore" or !info.empty()){
         for (size_t i=0; i<binlimits.size(); ++i){
             double freq_sum = 0;
             double freq_sum_of_squares = 0;
@@ -878,7 +867,7 @@ if (freq > 1 or freq < 0){
             info_avg.push_back(info_average);
             info_sd.push_back(info_deviation);
         }
-    //}
+    }
 
 
 
@@ -888,7 +877,6 @@ if (freq > 1 or freq < 0){
 
     // For each atom pair
     for(auto& it : frequencies){
-//cout << "PAIR=" << it.first << endl;
         if (it.first != "xx"){
             ofstream ofh;
             ofh.open (jobdir+"/"+it.first+".nrg");
@@ -897,11 +885,9 @@ if (freq > 1 or freq < 0){
             for (size_t i=0; i<it.second.size(); ++i){
                 double energy = 12345;
                 double obs = it.second[i];
-//cout << "FRQ=" << it.second[i] << endl;
 
                 if (useRefState){
                     double ref = (!dirFreqFiles.empty()) ? freq_avg[i] : frequencies["xx"][i]; // Reference frequency
-//cout << "REF=" << ref << endl;
                     if (ref > 0){
                         if (reldiff == "ref"){
                             energy = (ref-obs)/ref;
@@ -1028,7 +1014,6 @@ if (freq > 1 or freq < 0){
 
     int count = 0;
     if (!allatom and !largeinput and reldiff != "zscore" and info.empty() and dirFreqFiles.empty()){
-    //if (!allatom and !largeinput){
         myfh.open (jobdir+"/"+"top_distances.tsv");
         cout << " \"top_distances.tsv\",";
         while (count<100){
@@ -1160,7 +1145,8 @@ void squaredist(string pdbcode, vector<string>& filevec, vector<float>& sqdist, 
      
                 if (sqd < distmax and sqd > distmin){
                     sqdist.push_back(sqd);
-                    if (atom1[i].compare(atom2[j]) < 0){ // if alphabet order
+                    // if alphabet order
+                    if (atom1[i].compare(atom2[j]) < 0){ // FIXME this should be replaced by a simple sort
                         atompairs.push_back(atom1[i]+atom2[j]);
                         if(!allatom) pairID.push_back(pdbcode+"\t"+atom1[i]+to_string(num1[i])+chain1+"\t"+atom2[j]+to_string(num2[j])+chain2);
                     }

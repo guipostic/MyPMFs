@@ -201,16 +201,7 @@ sub helper {
     print
       "\n",
       "\tOptions:\n",
-      "\t--input            TSV file; column 0: UniProt AC; column 1: UniProt ID;\n",
-      "\t--pdbhtml          The PDBhtml database (CSV file)\n",
-      "\t--exclude_natives  For the input proteins that have at least one PDB structure: do not search into the HHsearch results\n",
-      "\t--template_shared  Allow N input proteins to share the same template (default = 1)\n",
-      "\t--results_hh       TSV file representing the HHsearch results\n",
-      "\t--smr              Use the SWISS-MODEL REPOSITORY INDEX file, instead of the HHsearch results\n",
-      "\t--only_pdb         Do not search into the HHsearch results\n",
-      "\t--no_filter        Do not filter the redundancy within the complexes\n",
-      "\t--max_title        Maximum character length for the title (default = 300)\n",
-      "\t--help             This help\n",
+      "\t--input            Input\n",
       "\n";
     exit 1;
 }
