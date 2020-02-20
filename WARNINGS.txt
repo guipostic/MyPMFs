@@ -1,0 +1,10 @@
+g++ src/training.cpp -std=c++0x -Wall -Wextra -O3 -march=native -o training
+g++ src/scoring.cpp -std=c++0x -Wall -Wextra -O3 -march=native -o scoring
+In file included from src/scoring.cpp:37:0:
+src/spline.h:399:8: warning: ‘double {anonymous}::tk::spline::deriv(int, double) const’ defined but not used [-Wunused-function]
+ double spline::deriv(int order, double x) const
+        ^~~~~~
+src/spline.h:272:6: warning: ‘void {anonymous}::tk::spline::set_boundary({anonymous}::tk::spline::bd_type, double, {anonymous}::tk::spline::bd_type, double, bool)’ defined but not used [-Wunused-function]
+ void spline::set_boundary(spline::bd_type left, double left_value,
+      ^~~~~~
+
